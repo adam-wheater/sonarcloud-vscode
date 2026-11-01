@@ -1,0 +1,68 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - '*'
+
+pool:
+  vmImage: ubuntu-latest
+
+# Default is empty; override with a SECRET pipeline variable named VSCE_PAT
+# (Pipelines > Edit > Variables, "Keep this value secret"). While it is empty the
+# publish step below skips itself, so main builds stay green until you're ready.
+variables:
+  VSCE_PAT: ''
+
+steps:
+  - task: NodeTool@0
+    displayName: Use Node 20
+    inputs:
+      versionSpec: '20.x'
+
+  - script: npm ci
+    displayName: Install dependencies
+
+  - script: npm run compile
+    displayName: Compile
+
+  - script: npm test
+    displayName: Unit tests
+
+  # VS Code needs a display even in headless mode.
+  - script: xvfb-run -a npm run test:integration
+    displayName: Integration tests
+
+  - script: npx --yes @vscode/vsce package
+    displayName: Package VSIX
+
+  - task: CopyFiles@2
+    displayName: Stage VSIX
+    inputs:
+      contents: '*.vsix'
+      targetFolder: $(Build.ArtifactStagingDirectory)
+
+  - task: PublishPipelineArtifact@1
+    displayName: Publish VSIX artifact
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)
+      artifact: vsix
+
+  # Publish to the VS Code Marketplace. Only on main, never on PRs. Needs a secret
+  # pipeline variable VSCE_PAT (Azure DevOps PAT, Marketplace > Manage scope, for the
+  # 'adam-wheater' publisher). Until that secret is set, the step skips itself so the
+  # build stays green. The secret is mapped explicitly into env — secret variables are
+  # not auto-exposed to scripts.
+  - script: |
+      if [ -z "$VSCE_PAT" ]; then
+        echo "VSCE_PAT not set — skipping Marketplace publish."
+        exit 0
+      fi
+      npx --yes @vscode/vsce publish --pat "$VSCE_PAT"
+    displayName: Publish to Marketplace
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), ne(variables['Build.Reason'], 'PullRequest'))
+    env:
+      VSCE_PAT: $(VSCE_PAT)

@@ -1,0 +1,8 @@
+.vscode/**
+src/**
+test/**
+.vscode-test/**
+tsconfig.json
+.gitignore
+azure-pipelines.yml
+**/*.map

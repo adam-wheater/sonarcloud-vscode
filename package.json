@@ -1,0 +1,831 @@
+{
+  "name": "sonarcloud-vscode",
+  "displayName": "SonarCloud Stats",
+  "description": "Browse SonarCloud issues, code coverage and quality measures for your projects, with branch selection and severity/type filters.",
+  "version": "1.0.0",
+  "publisher": "adam-wheater",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#0B2D45",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adam-wheater/sonarcloud-vscode"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "sonarcloud",
+    "sonarqube",
+    "quality",
+    "coverage",
+    "issues"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onView:sonarcloud.projects",
+    "onView:sonarcloud.issues",
+    "onView:sonarcloud.hotspots",
+    "onView:sonarcloud.measures",
+    "onCommand:sonarcloud.setToken",
+    "onCommand:sonarcloud.setOrganization",
+    "onCommand:sonarcloud.refresh",
+    "onCommand:sonarcloud.scanLocally",
+    "onCommand:sonarcloud.selectScanLanguage",
+    "onCommand:sonarcloud.localCoverage",
+    "onCommand:sonarcloud.openCoverageReport",
+    "onCommand:sonarcloud.toggleCoverageHighlight",
+    "onCommand:sonarcloud.toggleCoverageWatch",
+    "onCommand:sonarcloud.goToNextUncovered",
+    "onCommand:sonarcloud.clearCoverageHistory",
+    "onCommand:sonarcloud.markIssuesSeen",
+    "onCommand:sonarcloud.toggleNewIssuesOnly",
+    "onCommand:sonarcloud.selectBranch",
+    "onCommand:sonarcloud.filterSeverity",
+    "onCommand:sonarcloud.filterType",
+    "onCommand:sonarcloud.clearFilters",
+    "onCommand:sonarcloud.toggleNewCode"
+  ],
+  "contributes": {
+    "languageModelTools": [
+      {
+        "name": "sonarcloud_list_projects",
+        "displayName": "SonarCloud Projects",
+        "toolReferenceName": "sonarcloudProjects",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(repo)",
+        "userDescription": "List the SonarCloud projects in the configured organization.",
+        "modelDescription": "Lists the SonarCloud projects (key and name) in the user's configured SonarCloud organization. Use this to discover a projectKey to pass to the other sonarcloud tools when no project is selected in the SonarCloud sidebar.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "sonarcloud_get_issues",
+        "displayName": "SonarCloud Issues",
+        "toolReferenceName": "sonarcloudIssues",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(warning)",
+        "userDescription": "Fetch open SonarCloud issues (bugs, vulnerabilities, code smells) for a project.",
+        "modelDescription": "Fetches open static-analysis issues from SonarCloud for a project: bugs, vulnerabilities and code smells. Each issue includes the rule key, rule name, message, severity, type, file path (relative to the analyzed repository root) and line number, plus isNew when this workspace has a record of a previous look (pass onlyNew to return just those). Defaults to the project and branch currently selected in the SonarCloud sidebar when projectKey/branch are omitted. Use this to find code-quality problems to fix; then open the reported file at the reported line, and call sonarcloud_get_rule with the issue's rule key for a full explanation of the problem and how to fix it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "projectKey": {
+              "type": "string",
+              "description": "SonarCloud project key. Omit to use the project selected in the SonarCloud sidebar."
+            },
+            "branch": {
+              "type": "string",
+              "description": "Branch name to read analysis for. Omit to use the branch selected in the sidebar (or the main branch)."
+            },
+            "severities": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "BLOCKER",
+                  "CRITICAL",
+                  "MAJOR",
+                  "MINOR",
+                  "INFO"
+                ]
+              },
+              "description": "Only return issues with these severities. Omit for all severities."
+            },
+            "types": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "BUG",
+                  "VULNERABILITY",
+                  "CODE_SMELL"
+                ]
+              },
+              "description": "Only return issues of these types. Omit for all types."
+            },
+            "filePath": {
+              "type": "string",
+              "description": "Only return issues whose file path contains this substring (e.g. a file name or directory)."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of issues to return (default 50, max 200)."
+            },
+            "onlyNew": {
+              "type": "boolean",
+              "description": "Only return issues that were absent the last time this workspace looked at the project. Returns nothing when no previous look was recorded, since nothing can be called new."
+            }
+          }
+        }
+      },
+      {
+        "name": "sonarcloud_get_measures",
+        "displayName": "SonarCloud Measures",
+        "toolReferenceName": "sonarcloudMeasures",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(graph)",
+        "userDescription": "Fetch SonarCloud quality measures (coverage, duplication, ratings) for a project.",
+        "modelDescription": "Fetches SonarCloud quality measures for a project: quality gate status, code coverage (overall, line, condition), duplicated lines density, counts of bugs/vulnerabilities/security hotspots/code smells, technical debt, reliability/security/maintainability ratings and lines of code. When the quality gate has failed, also returns failedQualityGateConditions: which conditions failed, with the value reached and the threshold required. Defaults to the project and branch currently selected in the SonarCloud sidebar when projectKey/branch are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "projectKey": {
+              "type": "string",
+              "description": "SonarCloud project key. Omit to use the project selected in the SonarCloud sidebar."
+            },
+            "branch": {
+              "type": "string",
+              "description": "Branch name to read analysis for. Omit to use the branch selected in the sidebar (or the main branch)."
+            }
+          }
+        }
+      },
+      {
+        "name": "sonarcloud_get_hotspots",
+        "displayName": "SonarCloud Security Hotspots",
+        "toolReferenceName": "sonarcloudHotspots",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(flame)",
+        "userDescription": "Fetch SonarCloud security hotspots awaiting review for a project.",
+        "modelDescription": "Fetches security hotspots from SonarCloud for a project: security-sensitive code that needs human review (not confirmed vulnerabilities). Each hotspot includes a message, security category, vulnerability probability (HIGH/MEDIUM/LOW), file path and line number. Defaults to the project and branch currently selected in the SonarCloud sidebar when projectKey/branch are omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "projectKey": {
+              "type": "string",
+              "description": "SonarCloud project key. Omit to use the project selected in the SonarCloud sidebar."
+            },
+            "branch": {
+              "type": "string",
+              "description": "Branch name to read analysis for. Omit to use the branch selected in the sidebar (or the main branch)."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of hotspots to return (default 50, max 200)."
+            }
+          }
+        }
+      },
+      {
+        "name": "sonarcloud_get_rule",
+        "displayName": "SonarCloud Rule",
+        "toolReferenceName": "sonarcloudRule",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(book)",
+        "userDescription": "Fetch a SonarCloud rule's full description — why it is a problem and how to fix it.",
+        "modelDescription": "Fetches the full description of a SonarCloud/SonarQube rule by its rule key (e.g. 'typescript:S1481'), including why the flagged code is a problem and how to fix it, usually with compliant and noncompliant code examples. Call this before fixing an issue reported by sonarcloud_get_issues to fix it the way the rule intends.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ruleKey": {
+              "type": "string",
+              "description": "The rule key from an issue, e.g. 'typescript:S1481'."
+            }
+          },
+          "required": [
+            "ruleKey"
+          ]
+        }
+      }
+    ],
+    "configuration": {
+      "title": "SonarCloud",
+      "properties": {
+        "sonarcloud.organization": {
+          "type": "string",
+          "default": "",
+          "description": "SonarCloud organization key (as shown in the SonarCloud URL, e.g. https://sonarcloud.io/organizations/<key>)."
+        },
+        "sonarcloud.showDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the loaded SonarCloud issues as diagnostics (squiggles and Problems panel entries) on matching files in the workspace."
+        },
+        "sonarcloud.scannerPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the SonarScanner CLI executable used by **SonarCloud: Scan Project Locally**. Leave empty to use the extension's auto-downloaded scanner, or `sonar-scanner` from `PATH`."
+        },
+        "sonarcloud.scannerArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Additional arguments passed to the SonarScanner CLI on local scans, e.g. `-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info` to include locally generated coverage."
+        },
+        "sonarcloud.localScan.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "dotnet",
+            "dart",
+            "js",
+            "java-maven",
+            "java-gradle",
+            "python",
+            "go",
+            "php",
+            "ruby",
+            "other"
+          ],
+          "enumDescriptions": [
+            "Ask once per workspace, with detected languages offered first (remembered afterwards).",
+            ".NET (C# / VB / F#) — SonarScanner for .NET, builds the solution and runs dotnet test with coverage.",
+            "Flutter / Dart — flutter test --coverage, reported through sonar.dart.lcov.reportPaths.",
+            "JavaScript / TypeScript (incl. React) — npm/yarn/pnpm test with coverage, reported through sonar.javascript.lcov.reportPaths.",
+            "Java / Kotlin with Maven — mvn verify, JaCoCo XML report.",
+            "Java / Kotlin with Gradle — gradle test jacocoTestReport, JaCoCo XML report.",
+            "Python — pytest --cov, reported through sonar.python.coverage.reportPaths.",
+            "Go — go test -coverprofile, reported through sonar.go.coverage.reportPaths.",
+            "PHP — PHPUnit Clover report, reported through sonar.php.coverage.reportPaths.",
+            "Ruby — SimpleCov report, reported through sonar.ruby.coverage.reportPaths.",
+            "Other — scan sources only, no coverage."
+          ],
+          "default": "auto",
+          "markdownDescription": "Language that **SonarCloud: Scan Project Locally** configures itself for: which coverage command runs and which analysis property SonarCloud reads the report through. `auto` asks once per workspace (detected languages first) and remembers the answer — change it later with **SonarCloud: Select Local Scan Language**. Any other value overrides that remembered choice."
+        },
+        "sonarcloud.localScan.runCoverageCommand": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Run the selected language's coverage command (e.g. `flutter test --coverage`, `pytest --cov`) before scanning, so fresh coverage is uploaded. Turn off to scan whatever report already exists on disk. Does not apply to `.NET` scans, which are configured by the `sonarcloud.localTest.*` settings."
+        },
+        "sonarcloud.localScan.coverageReportPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path (relative to the scanned folder) of the coverage report to upload, when it is not in the language's usual location. Leave empty to use the default for the selected language. Does not apply to `.NET` scans."
+        },
+        "sonarcloud.coverage.changedLinesThreshold": {
+          "type": "number",
+          "default": 80,
+          "minimum": 0,
+          "maximum": 100,
+          "markdownDescription": "Percentage of changed lines that must be covered for **SonarCloud: Local Coverage Report** to pass its gate. The report shows a pass/fail banner and warns when the branch falls short. Set to `0` to disable the gate. A branch that changes no instrumented lines always passes."
+        },
+        "sonarcloud.coverage.highlightUncovered": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "After a local coverage run, highlight uncovered lines in open editors — lines this branch changed are marked more strongly. Toggle at any time with **SonarCloud: Toggle Coverage Highlighting**."
+        },
+        "sonarcloud.coverage.nativeCoverage": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Publish local coverage results through VS Code's built-in coverage UI, so they appear in the **Test Coverage** view and the editor's coverage gutter. This registers a `SonarCloud Local Coverage` entry in the Testing view — one item per workspace folder, runnable with coverage. Turn off to keep coverage confined to this extension's own report and highlighting."
+        },
+        "sonarcloud.coverage.watchReport": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "After a local coverage run, watch the report it parsed and re-read it whenever it changes, so an external watcher (`dotnet watch test`, `jest --watch`, …) keeps the figures current. Only the report is re-read — the coverage command is never re-run. Toggle with **SonarCloud: Toggle Coverage Watch**."
+        },
+        "sonarcloud.coverage.ratchet": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Fail a local coverage run when overall line coverage has dropped since the previous run (preferring the last run on the same branch). Catches the regression the changed-line gate cannot see: deleted tests, or newly untested code the diff does not attribute to this branch."
+        },
+        "sonarcloud.coverage.ratchetTolerance": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "markdownDescription": "Percentage points of coverage loss to tolerate before `#sonarcloud.coverage.ratchet#` fails a run. Absorbs the rounding you get from adding a line or two of code."
+        },
+        "sonarcloud.coverage.baseBranch": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Git ref that **SonarCloud: Local Coverage Report** measures changed-line coverage against. Leave empty to detect one automatically: the branch's upstream, then `origin/main`, `origin/master`, `origin/develop` and their local equivalents. The diff uses the merge base, so it covers everything this branch would bring — committed and uncommitted."
+        },
+        "sonarcloud.localScan.verbose": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Pass `sonar.verbose=true` to local scans, so the scanner logs how it resolves coverage report paths and other properties. Turn on when diagnosing missing coverage; noisy otherwise."
+        },
+        "sonarcloud.localScan.mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "cli",
+            "dotnet"
+          ],
+          "default": "auto",
+          "markdownDescription": "Scanner mode for **SonarCloud: Scan Project Locally**. `auto` uses SonarScanner for .NET when a `.sln` or `.csproj`-style project is detected; otherwise it uses the SonarScanner CLI."
+        },
+        "sonarcloud.localTest.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "When SonarScanner for .NET is used, run matching test projects between the scanner `begin` and `end` steps and include the configured report-path properties. If you do not set this explicitly, `.NET` local scans enable it automatically so coverage mirrors CI; set this to `false` to skip tests."
+        },
+        "sonarcloud.localTest.buildTarget": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional solution or non-test project path to build in local .NET scan mode. Leave empty to prefer `dotnet.defaultSolution` or workspace solution files; if no solution is available, the extension falls back to main projects from `sonarcloud.localTest.projectsToBuild`."
+        },
+        "sonarcloud.localTest.projectsToBuild": {
+          "type": "string",
+          "default": "**/*.csproj",
+          "markdownDescription": "Glob, relative to the scanned workspace folder, for main projects built during a local `.NET` scan when no explicit `buildTarget` or preferred solution file is used. Test projects are skipped automatically. Set this explicitly when you want to override solution-based builds and scan selected projects instead."
+        },
+        "sonarcloud.localTest.buildArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "--configuration",
+            "Release",
+            "--no-incremental",
+            "--disable-build-servers"
+          ],
+          "markdownDescription": "Arguments appended after `dotnet build <target>` during a local .NET scan. Supports `$(Build.SourcesDirectory)`, `$(System.DefaultWorkingDirectory)`, `$(Agent.TempDirectory)`, `${workspaceFolder}` and `${temp}` placeholders."
+        },
+        "sonarcloud.localTest.projectsToTest": {
+          "type": "string",
+          "default": "**/*[Tt]ests.csproj",
+          "markdownDescription": "Glob, relative to the scanned workspace folder, for test projects run by local test mode before the SonarCloud scan."
+        },
+        "sonarcloud.localTest.dotnetTestArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "--configuration",
+            "Release",
+            "--collect",
+            "XPlat Code Coverage",
+            "--logger",
+            "trx;LogFileName=test_results.trx",
+            "--filter",
+            "TestCategory!=LocalTestOnly"
+          ],
+          "markdownDescription": "Arguments appended after `dotnet test <project>` in local test mode. Supports `$(Build.SourcesDirectory)`, `$(System.DefaultWorkingDirectory)`, `$(Agent.TempDirectory)`, `${workspaceFolder}` and `${temp}` placeholders. When you leave coverage-path settings at their defaults, the extension prefers SonarSource's documented `dotnet-coverage` XML flow and prompts to install the global tool if it is missing; otherwise it falls back to `--collect \"XPlat Code Coverage\"` with a generated OpenCover runsettings file. The extension always injects a per-project `--results-directory`; add your own to manage report paths yourself."
+        },
+        "sonarcloud.localTest.sonarExcludePattern": {
+          "type": "string",
+          "default": "sonar.exclusions=**/*.Tests/**/*,**/*[Tt]ests/**/*,**/*Test*.cs,*.dll,**/*.json,**/*.css,**/wwwroot/**",
+          "markdownDescription": "Sonar property applied in local .NET scan mode for exclusions. Use the same `sonar.exclusions=...` value you pass to `SonarCloudPrepare@3` in CI if needed."
+        },
+        "sonarcloud.localTest.sonarInclusions": {
+          "type": "string",
+          "default": "sonar.inclusions=**/*.cs",
+          "markdownDescription": "Sonar property applied in local .NET scan mode for inclusions."
+        },
+        "sonarcloud.localTest.openCoverReportsPaths": {
+          "type": "string",
+          "default": "$(Build.SourcesDirectory)/coverage/sonarcloud-local-scan/**/coverage.opencover.xml",
+          "markdownDescription": "Value mapped to `sonar.cs.opencover.reportsPaths` in local .NET scan mode. Supports the same placeholders as `sonarcloud.localTest.dotnetTestArgs`. Leave this unset unless you are deliberately forcing OpenCover/Coverlet collection yourself: when left at the default, the extension can pass exact report files automatically, offer to install `dotnet-coverage`, and prefer that flow when available."
+        },
+        "sonarcloud.localTest.vstestReportsPaths": {
+          "type": "string",
+          "default": "$(Build.SourcesDirectory)/coverage/sonarcloud-local-scan/**/*.trx,$(Build.SourcesDirectory)/TestResults/**/*.trx,$(Agent.TempDirectory)/**/TestResults/**/*.trx",
+          "markdownDescription": "Value mapped to `sonar.cs.vstest.reportsPaths` in local .NET scan mode. Supports the same placeholders as `sonarcloud.localTest.dotnetTestArgs`. Leave unset to let the extension pass the exact per-test-project TRX files it collects itself."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sonarcloud",
+          "title": "SonarCloud",
+          "icon": "resources/sonarcloud.svg"
+        }
+      ]
+    },
+    "views": {
+      "sonarcloud": [
+        {
+          "id": "sonarcloud.projects",
+          "name": "Projects",
+          "icon": "resources/sonarcloud.svg"
+        },
+        {
+          "id": "sonarcloud.issues",
+          "name": "Issues",
+          "icon": "resources/sonarcloud.svg"
+        },
+        {
+          "id": "sonarcloud.hotspots",
+          "name": "Security Hotspots",
+          "icon": "resources/sonarcloud.svg"
+        },
+        {
+          "id": "sonarcloud.measures",
+          "name": "Coverage & Measures",
+          "icon": "resources/sonarcloud.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "sonarcloud.projects",
+        "when": "!sonarcloud.configured",
+        "contents": "Connect to SonarCloud to browse your organization's projects.\n[Set Organization](command:sonarcloud.setOrganization)\n[Set API Token](command:sonarcloud.setToken)\nGenerate a token under Account → Security on sonarcloud.io."
+      },
+      {
+        "view": "sonarcloud.issues",
+        "when": "sonarcloud.configured && !sonarcloud.projectSelected",
+        "contents": "Select a project in the Projects view to see its issues."
+      },
+      {
+        "view": "sonarcloud.hotspots",
+        "when": "sonarcloud.configured && !sonarcloud.projectSelected",
+        "contents": "Select a project in the Projects view to see security hotspots awaiting review."
+      },
+      {
+        "view": "sonarcloud.measures",
+        "when": "sonarcloud.configured && !sonarcloud.projectSelected",
+        "contents": "Select a project in the Projects view to see coverage and quality measures.\n\nOr measure coverage locally — no project needed.\n[Run Local Coverage Report](command:sonarcloud.localCoverage)"
+      },
+      {
+        "view": "sonarcloud.measures",
+        "when": "!sonarcloud.configured",
+        "contents": "Connect to SonarCloud in the Projects view to see quality measures.\n\nYou can also measure coverage locally without any SonarCloud setup — it runs your tests and reports line, condition and changed-line coverage.\n[Run Local Coverage Report](command:sonarcloud.localCoverage)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "sonarcloud.setToken",
+        "title": "Set API Token",
+        "category": "SonarCloud",
+        "icon": "$(key)"
+      },
+      {
+        "command": "sonarcloud.setOrganization",
+        "title": "Set Organization",
+        "category": "SonarCloud",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "sonarcloud.refresh",
+        "title": "Refresh",
+        "category": "SonarCloud",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "sonarcloud.scanLocally",
+        "title": "Scan Project Locally",
+        "category": "SonarCloud",
+        "icon": "$(play)"
+      },
+      {
+        "command": "sonarcloud.selectScanLanguage",
+        "title": "Select Local Scan Language",
+        "category": "SonarCloud",
+        "icon": "$(symbol-namespace)"
+      },
+      {
+        "command": "sonarcloud.localCoverage",
+        "title": "Local Coverage Report",
+        "category": "SonarCloud",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "sonarcloud.clearCoverageHistory",
+        "title": "Clear Local Coverage History",
+        "category": "SonarCloud"
+      },
+      {
+        "command": "sonarcloud.markIssuesSeen",
+        "title": "Mark Issues as Seen",
+        "category": "SonarCloud",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "sonarcloud.toggleNewIssuesOnly",
+        "title": "Toggle New Issues Only",
+        "category": "SonarCloud",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "sonarcloud.openCoverageReport",
+        "title": "Open Local Coverage Report",
+        "category": "SonarCloud",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "sonarcloud.toggleCoverageHighlight",
+        "title": "Toggle Coverage Highlighting",
+        "category": "SonarCloud",
+        "icon": "$(paintcan)"
+      },
+      {
+        "command": "sonarcloud.toggleCoverageWatch",
+        "title": "Toggle Coverage Watch",
+        "category": "SonarCloud",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "sonarcloud.goToNextUncovered",
+        "title": "Go to Next Uncovered Line",
+        "category": "SonarCloud",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "sonarcloud.selectProject",
+        "title": "Select Project",
+        "category": "SonarCloud"
+      },
+      {
+        "command": "sonarcloud.selectBranch",
+        "title": "Select Branch",
+        "category": "SonarCloud",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "sonarcloud.filterSeverity",
+        "title": "Filter by Severity",
+        "category": "SonarCloud",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "sonarcloud.filterType",
+        "title": "Filter by Type",
+        "category": "SonarCloud",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "sonarcloud.clearFilters",
+        "title": "Clear Filters",
+        "category": "SonarCloud",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "sonarcloud.toggleNewCode",
+        "title": "Toggle New Code Focus",
+        "category": "SonarCloud",
+        "icon": "$(history)"
+      },
+      {
+        "command": "sonarcloud.loadMoreIssues",
+        "title": "Load More Issues",
+        "category": "SonarCloud"
+      },
+      {
+        "command": "sonarcloud.assignIssue",
+        "title": "Assign Issue…",
+        "category": "SonarCloud"
+      },
+      {
+        "command": "sonarcloud.commentIssue",
+        "title": "Add Comment…",
+        "category": "SonarCloud"
+      },
+      {
+        "command": "sonarcloud.resolveIssue",
+        "title": "Resolve Issue…",
+        "category": "SonarCloud"
+      },
+      {
+        "command": "sonarcloud.fixWithCopilot",
+        "title": "Fix with Copilot",
+        "category": "SonarCloud",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "sonarcloud.fixAllWithCopilot",
+        "title": "Fix All Filtered Issues with Copilot",
+        "category": "SonarCloud",
+        "icon": "$(wand)"
+      },
+      {
+        "command": "sonarcloud.openHotspot",
+        "title": "Open Hotspot Location",
+        "category": "SonarCloud"
+      },
+      {
+        "command": "sonarcloud.openHotspotInBrowser",
+        "title": "Open Hotspot on SonarCloud",
+        "category": "SonarCloud",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "sonarcloud.openIssue",
+        "title": "Open Issue Location",
+        "category": "SonarCloud"
+      },
+      {
+        "command": "sonarcloud.showIssueDetails",
+        "title": "Show Issue Details",
+        "category": "SonarCloud",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "sonarcloud.openIssueInBrowser",
+        "title": "Open Issue on SonarCloud",
+        "category": "SonarCloud",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "sonarcloud.openProjectInBrowser",
+        "title": "Open Project on SonarCloud",
+        "category": "SonarCloud",
+        "icon": "$(link-external)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "sonarcloud.setOrganization",
+          "when": "view == sonarcloud.projects",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sonarcloud.setToken",
+          "when": "view == sonarcloud.projects",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sonarcloud.scanLocally",
+          "when": "view == sonarcloud.projects && sonarcloud.projectSelected",
+          "group": "navigation@3"
+        },
+        {
+          "command": "sonarcloud.selectBranch",
+          "when": "(view == sonarcloud.issues || view == sonarcloud.hotspots || view == sonarcloud.measures) && sonarcloud.projectSelected",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sonarcloud.filterSeverity",
+          "when": "view == sonarcloud.issues && sonarcloud.projectSelected",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sonarcloud.filterType",
+          "when": "view == sonarcloud.issues && sonarcloud.projectSelected",
+          "group": "navigation@3"
+        },
+        {
+          "command": "sonarcloud.toggleNewCode",
+          "when": "view == sonarcloud.issues && sonarcloud.projectSelected",
+          "group": "navigation@4"
+        },
+        {
+          "command": "sonarcloud.fixAllWithCopilot",
+          "when": "view == sonarcloud.issues && sonarcloud.projectSelected",
+          "group": "navigation@5"
+        },
+        {
+          "command": "sonarcloud.localCoverage",
+          "when": "view == sonarcloud.measures",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sonarcloud.refresh",
+          "when": "view =~ /^sonarcloud\\./",
+          "group": "navigation@9"
+        },
+        {
+          "command": "sonarcloud.clearFilters",
+          "when": "view == sonarcloud.issues",
+          "group": "1_filters@1"
+        },
+        {
+          "command": "sonarcloud.markIssuesSeen",
+          "when": "view == sonarcloud.issues && sonarcloud.projectSelected",
+          "group": "1_filters@2"
+        },
+        {
+          "command": "sonarcloud.toggleNewIssuesOnly",
+          "when": "view == sonarcloud.issues && sonarcloud.projectSelected",
+          "group": "1_filters@3"
+        },
+        {
+          "command": "sonarcloud.toggleCoverageWatch",
+          "when": "view == sonarcloud.measures",
+          "group": "1_coverage@1"
+        },
+        {
+          "command": "sonarcloud.toggleCoverageHighlight",
+          "when": "view == sonarcloud.measures",
+          "group": "1_coverage@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "sonarcloud.showIssueDetails",
+          "when": "view == sonarcloud.issues && viewItem == issue",
+          "group": "inline@1"
+        },
+        {
+          "command": "sonarcloud.openIssueInBrowser",
+          "when": "view == sonarcloud.issues && viewItem == issue",
+          "group": "inline@2"
+        },
+        {
+          "command": "sonarcloud.fixWithCopilot",
+          "when": "view == sonarcloud.issues && viewItem == issue",
+          "group": "inline@3"
+        },
+        {
+          "command": "sonarcloud.fixWithCopilot",
+          "when": "view == sonarcloud.issues && viewItem == issue",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "sonarcloud.assignIssue",
+          "when": "view == sonarcloud.issues && viewItem == issue",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "sonarcloud.commentIssue",
+          "when": "view == sonarcloud.issues && viewItem == issue",
+          "group": "1_actions@3"
+        },
+        {
+          "command": "sonarcloud.resolveIssue",
+          "when": "view == sonarcloud.issues && viewItem == issue",
+          "group": "1_actions@4"
+        },
+        {
+          "command": "sonarcloud.openHotspotInBrowser",
+          "when": "view == sonarcloud.hotspots && viewItem == hotspot",
+          "group": "inline@1"
+        },
+        {
+          "command": "sonarcloud.openProjectInBrowser",
+          "when": "view == sonarcloud.projects && viewItem == project",
+          "group": "inline@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "sonarcloud.selectProject",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.openIssue",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.showIssueDetails",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.openIssueInBrowser",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.openProjectInBrowser",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.loadMoreIssues",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.assignIssue",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.commentIssue",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.resolveIssue",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.fixWithCopilot",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.openHotspot",
+          "when": "false"
+        },
+        {
+          "command": "sonarcloud.openHotspotInBrowser",
+          "when": "false"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node --test \"test/*.test.js\"",
+    "pretest:integration": "npm run compile",
+    "test:integration": "node test/integration/runTests.js",
+    "test:all": "npm test && npm run test:integration"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.95.0",
+    "@vscode/test-electron": "^3.1.0",
+    "mocha": "^11.8.0",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.18"
+  }
+}
